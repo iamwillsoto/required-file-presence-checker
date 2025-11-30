@@ -24,7 +24,7 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install pyyaml
+        run: pip install pyyaml pytest
 
       - name: Run required files check
         run: python3 check_required_files.py
