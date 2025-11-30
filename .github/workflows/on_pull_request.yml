@@ -12,7 +12,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # should be /github-actions/required-files-checker/beta
+      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # /github-actions/required-files-checker/beta
 
     steps:
       - name: Checkout repository
@@ -23,18 +23,15 @@ jobs:
         with:
           python-version: "3.x"
 
-      # ADVANCED A3 – install PyYAML for the checker
       - name: Install dependencies
         run: pip install pyyaml
 
-      # This runs your Python script and writes required-files-report.json
       - name: Run required files check
         run: python3 check_required_files.py
 
       - name: Check AWS CLI version
         run: aws --version
 
-      # ADVANCED A3 – enriched CloudWatch log using the JSON report
       - name: Log success to CloudWatch (beta)
         if: success()
         run: |
@@ -43,7 +40,12 @@ jobs:
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          REPORT_JSON=$(cat required-files-report.json)
+          # Ensure we always have some JSON to log
+          if [ -f required-files-report.json ]; then
+            REPORT_JSON=$(cat required-files-report.json)
+          else
+            REPORT_JSON='{"used_config_file": false, "config_file": null, "required_files": [], "missing_files": [], "error": "required-files-report.json not found"}'
+          fi
 
           EVENT_JSON=$(
             jq -n \
