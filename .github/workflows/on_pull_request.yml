@@ -12,7 +12,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # points to beta group from secrets
+      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # beta log group from secrets
 
     steps:
       - name: Checkout repository
@@ -26,29 +26,27 @@ jobs:
       - name: Run required files check
         run: python3 check_required_files.py
 
-      # Just verify AWS CLI is available on the runner
       - name: Check AWS CLI version
         run: aws --version
 
-      # This step only runs if the previous steps succeeded
       - name: Log success to CloudWatch (beta)
         if: success()
         run: |
-          # Use ISO-like timestamp but with dashes (CloudWatch doesn't allow colons)
+          # CloudWatch log stream names can't contain colons, so use dashes in the time
           LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 
-          # Create log group and stream if they don't exist
+          # Create log group and stream if they don't already exist
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # Build a simple text message with all required metadata
+          # Build a simple text message with all metadata
           MESSAGE="workflow=${{ github.workflow }}, commit_sha=${{ github.sha }}, actor=${{ github.actor }}, event_name=${{ github.event_name }}, branch=${{ github.ref_name }}, repository=${{ github.repository }}"
 
-          # Milliseconds since epoch
-          TIMESTAMP_MS=$(date +%s%3N)
+          # Build a valid JSON array for --log-events using jq so quoting is always correct
+          EVENT_JSON=$(jq -n --arg msg "$MESSAGE" --arg ts "$(date +%s%3N)" '[{timestamp: ($ts|tonumber), message: $msg}]')
 
-          # Send log event (message is just a string, no nested JSON)
+          # Send log event
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
             --log-stream-name "$LOG_STREAM_NAME" \
-            --log-events "[{\"timestamp\": ${TIMESTAMP_MS}, \"message\": \"${MESSAGE}\"}]"
+            --log-events "$EVENT_JSON"
