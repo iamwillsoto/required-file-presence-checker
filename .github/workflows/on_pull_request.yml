@@ -1,0 +1,65 @@
+name: Required Files Check (PR - Beta)
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  required-files-check:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }} # points to beta group from secrets
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run required files check
+        run: python3 check_required_files.py
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      # This step only runs if the previous steps succeeded
+      - name: Log success to CloudWatch (beta)
+        if: success()
+        run: |
+          LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Create a log group and stream if they don't exist
+          aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
+          aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --LOG-STREAM-NAME "$LOG_STREAM_NAME" || true
+
+          # Build a simple JSON message using jq (already installed on GitHub runners)
+          MESSAGE=$(jq -n \
+            --arg workflow "${{ github.workflow }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg event "${{ github.event_name }}" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg repo "${{ github.repository }}" \
+            '{
+              workflow: $workflow,
+              commit_sha: $sha,
+              actor: $actor,
+              event_name: $event,
+              branch: $branch,
+              repository: $repo
+            }')
+
+          # Send log event
+          aws logs put-log-events \
+            --log-group-name "$LOG_GROUP_NAME" \
+            --log-stream-name "$LOG_STREAM_NAME" \
+            --log-events "[{\"timestamp\": $(date +%s%3N), \"message\": \"$MESSAGE\"}]"
