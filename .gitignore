@@ -1,2 +1,4 @@
 required-files-report.json
 .DS_Store
+__pycache__/
+tests/__pycache__/
