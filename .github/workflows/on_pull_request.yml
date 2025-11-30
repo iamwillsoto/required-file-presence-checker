@@ -34,31 +34,21 @@ jobs:
       - name: Log success to CloudWatch (beta)
         if: success()
         run: |
-          LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Use ISO-like timestamp but with dashes (CloudWatch doesn't allow colons)
+          LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 
-          # Create a log group and stream if they don't exist
+          # Create log group and stream if they don't exist
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # Build a simple JSON message using jq (already installed on GitHub runners)
-          MESSAGE=$(jq -n \
-            --arg workflow "${{ github.workflow }}" \
-            --arg sha "${{ github.sha }}" \
-            --arg actor "${{ github.actor }}" \
-            --arg event "${{ github.event_name }}" \
-            --arg branch "${{ github.ref_name }}" \
-            --arg repo "${{ github.repository }}" \
-            '{
-              workflow: $workflow,
-              commit_sha: $sha,
-              actor: $actor,
-              event_name: $event,
-              branch: $branch,
-              repository: $repo
-            }')
+          # Build a simple text message with all required metadata
+          MESSAGE="workflow=${{ github.workflow }}, commit_sha=${{ github.sha }}, actor=${{ github.actor }}, event_name=${{ github.event_name }}, branch=${{ github.ref_name }}, repository=${{ github.repository }}"
 
-          # Send log event
+          # Milliseconds since epoch
+          TIMESTAMP_MS=$(date +%s%3N)
+
+          # Send log event (message is just a string, no nested JSON)
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
             --log-stream-name "$LOG_STREAM_NAME" \
-            --log-events "[{\"timestamp\": $(date +%s%3N), \"message\": \"$MESSAGE\"}]"
+            --log-events "[{\"timestamp\": ${TIMESTAMP_MS}, \"message\": \"${MESSAGE}\"}]"
