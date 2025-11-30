@@ -1,7 +1,9 @@
 import os
 import sys
 import json
-import yaml  # from PyYAML
+
+import yaml  # PyYAML
+
 
 DEFAULT_REQUIRED_FILES = ["README.md", ".gitignore"]
 CONFIG_FILE = ".required-files.yml"
@@ -14,7 +16,7 @@ def load_required_files():
     Returns (required_files, used_config_file, error_message_or_None)
     """
     if not os.path.isfile(CONFIG_FILE):
-        # No config file → fall back to defaults
+        # No config -> use defaults
         return DEFAULT_REQUIRED_FILES, False, None
 
     try:
@@ -28,7 +30,9 @@ def load_required_files():
 
     required_files = data["required_files"]
 
-    if not isinstance(required_files, list) or not all(isinstance(f, str) for f in required_files):
+    if not isinstance(required_files, list) or not all(
+        isinstance(f, str) for f in required_files
+    ):
         return None, True, "'required_files' must be a list of strings"
 
     return required_files, True, None
@@ -51,7 +55,7 @@ def write_report(required_files, missing_files, used_config_file, error=None):
 def check_required_files():
     required_files, used_config_file, error = load_required_files()
 
-    # Config error → write report and fail
+    # Config problem -> write report + fail
     if error:
         write_report(required_files, [], used_config_file, error=error)
         print(f"Configuration error: {error}")
