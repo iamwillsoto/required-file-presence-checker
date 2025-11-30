@@ -12,7 +12,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # beta log group from secrets
+      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # should be /github-actions/required-files-checker/beta
 
     steps:
       - name: Checkout repository
@@ -23,15 +23,18 @@ jobs:
         with:
           python-version: "3.x"
 
+      # ADVANCED A3 – install PyYAML for the checker
       - name: Install dependencies
         run: pip install pyyaml
 
+      # This runs your Python script and writes required-files-report.json
       - name: Run required files check
         run: python3 check_required_files.py
 
       - name: Check AWS CLI version
         run: aws --version
 
+      # ADVANCED A3 – enriched CloudWatch log using the JSON report
       - name: Log success to CloudWatch (beta)
         if: success()
         run: |
