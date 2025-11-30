@@ -35,20 +35,37 @@ jobs:
       - name: Log success to CloudWatch (beta)
         if: success()
         run: |
-          # Use dashes instead of colons so it's a valid CloudWatch logStreamName
           LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 
-          # Create log group and stream if they don't already exist
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # Build a simple text message with all metadata
-          MESSAGE="workflow=${{ github.workflow }}, commit_sha=${{ github.sha }}, actor=${{ github.actor }}, event_name=${{ github.event_name }}, branch=${{ github.ref_name }}, repository=${{ github.repository }}"
+          REPORT_JSON=$(cat required-files-report.json)
 
-          # Build a valid JSON array for --log-events using jq so quoting is always correct
-          EVENT_JSON=$(jq -n --arg msg "$MESSAGE" --arg ts "$(date +%s%3N)" '[{timestamp: ($ts|tonumber), message: $msg}]')
+          EVENT_JSON=$(
+            jq -n \
+              --arg workflow "${{ github.workflow }}" \
+              --arg sha "${{ github.sha }}" \
+              --arg actor "${{ github.actor }}" \
+              --arg event "${{ github.event_name }}" \
+              --arg branch "${{ github.ref_name }}" \
+              --arg repo "${{ github.repository }}" \
+              --argjson report "$REPORT_JSON" \
+              --arg ts "$(date +%s%3N)" \
+              '[{
+                timestamp: ($ts|tonumber),
+                message: ({
+                  workflow: $workflow,
+                  commit_sha: $sha,
+                  actor: $actor,
+                  event_name: $event,
+                  branch: $branch,
+                  repository: $repo,
+                  required_files_report: $report
+                } | tostring)
+              }]'
+          )
 
-          # Send log event
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
             --log-stream-name "$LOG_STREAM_NAME" \
