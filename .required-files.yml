@@ -1,0 +1,5 @@
+required_files:
+  - README.md
+  - .gitignore
+  - .github/workflows/on_pull_request.yml
+  - .github/workflows/on_merge.yml
