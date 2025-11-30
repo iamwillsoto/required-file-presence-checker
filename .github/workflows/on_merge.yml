@@ -26,10 +26,8 @@ jobs:
       - name: Run required files check
         run: python3 check_required_files.py
 
-      - name: Install AWS CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+      - name: Check AWS CLI version
+        run: aws --version
 
       - name: Log success to CloudWatch (prod)
         if: success()
@@ -41,9 +39,9 @@ jobs:
 
           MESSAGE="workflow=${{ github.workflow }}, commit_sha=${{ github.sha }}, actor=${{ github.actor }}, event_name=${{ github.event_name }}, branch=${{ github.ref_name }}, repository=${{ github.repository }}"
 
-          TIMESTAMP_MS=$(date +%s%3N)
+          EVENT_JSON=$(jq -n --arg msg "$MESSAGE" --arg ts "$(date +%s%3N)" '[{timestamp: ($ts|tonumber), message: $msg}]')
 
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
             --log-stream-name "$LOG_STREAM_NAME" \
-            --log-events "[{\"timestamp\": ${TIMESTAMP_MS}, \"message\": \"${MESSAGE}\"}]"
+            --log-events "$EVENT_JSON"
