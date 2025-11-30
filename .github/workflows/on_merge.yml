@@ -12,7 +12,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      LOG_GROUP_NAME: "/github-actions/required-files-checker/prod"  # prod log group
+      LOG_GROUP_NAME: "/github-actions/required-files-checker/prod"
 
     steps:
       - name: Checkout repository
@@ -38,22 +38,17 @@ jobs:
       - name: Log success to CloudWatch (prod)
         if: success()
         run: |
-          # Use dashes instead of colons so it's a valid CloudWatch logStreamName
           LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 
-          # Create log group and stream if they don't already exist
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # Ensure we always have some JSON to log
-          if [ -f required-files-report.json ]; then
-            REPORT_JSON=$(cat required-files-report.json)
-          else
-            # Fallback if report file is missing
+          if [ ! -f "required-files-report.json" ]; then
             REPORT_JSON='{"used_config_file": false, "config_file": null, "required_files": [], "missing_files": [], "error": "required-files-report.json not found"}'
+          else
+            REPORT_JSON=$(cat required-files-report.json)
           fi
 
-          # Build a valid JSON array for --log-events using jq
           EVENT_JSON=$(
             jq -n \
               --arg workflow "${{ github.workflow }}" \
