@@ -40,9 +40,33 @@ jobs:
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          MESSAGE="workflow=${{ github.workflow }}, commit_sha=${{ github.sha }}, actor=${{ github.actor }}, event_name=${{ github.event_name }}, branch=${{ github.ref_name }}, repository=${{ github.repository }}"
+          # JSON report from the Python checker
+          REPORT_JSON=$(cat required-files-report.json)
 
-          EVENT_JSON=$(jq -n --arg msg "$MESSAGE" --arg ts "$(date +%s%3N)" '[{timestamp: ($ts|tonumber), message: $msg}]')
+          # Build CloudWatch log events JSON via jq
+          EVENT_JSON=$(
+            jq -n \
+              --arg workflow "${{ github.workflow }}" \
+              --arg sha "${{ github.sha }}" \
+              --arg actor "${{ github.actor }}" \
+              --arg event "${{ github.event_name }}" \
+              --arg branch "${{ github.ref_name }}" \
+              --arg repo "${{ github.repository }}" \
+              --argjson report "$REPORT_JSON" \
+              --arg ts "$(date +%s%3N)" \
+              '[{
+                timestamp: ($ts|tonumber),
+                message: ({
+                  workflow: $workflow,
+                  commit_sha: $sha,
+                  actor: $actor,
+                  event_name: $event,
+                  branch: $branch,
+                  repository: $repo,
+                  required_files_report: $report
+                } | tostring)
+              }]'
+          )
 
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
