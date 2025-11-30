@@ -25,6 +25,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install pyyaml pytest
+      
+      - name: Run unit tests
+        run: pytest
 
       - name: Run required files check
         run: python3 check_required_files.py
