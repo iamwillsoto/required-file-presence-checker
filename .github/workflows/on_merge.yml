@@ -22,28 +22,33 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-          
+
+      # ADVANCED A3 – install PyYAML for the checker
       - name: Install dependencies
         run: pip install pyyaml
 
+      # This runs your Python script and writes required-files-report.json
       - name: Run required files check
         run: python3 check_required_files.py
 
       - name: Check AWS CLI version
         run: aws --version
 
+      # ADVANCED A3 – enriched CloudWatch log using the JSON report
       - name: Log success to CloudWatch (prod)
         if: success()
         run: |
+          # Use dashes instead of colons so it's a valid CloudWatch logStreamName
           LOG_STREAM_NAME=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 
+          # Create log group and stream if they don't already exist
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # JSON report from the Python checker
+          # JSON report written by check_required_files.py
           REPORT_JSON=$(cat required-files-report.json)
 
-          # Build CloudWatch log events JSON via jq
+          # Build a valid JSON array for --log-events using jq
           EVENT_JSON=$(
             jq -n \
               --arg workflow "${{ github.workflow }}" \
@@ -68,6 +73,7 @@ jobs:
               }]'
           )
 
+          # Send enriched log entry to CloudWatch
           aws logs put-log-events \
             --log-group-name "$LOG_GROUP_NAME" \
             --log-stream-name "$LOG_STREAM_NAME" \
