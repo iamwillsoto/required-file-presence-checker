@@ -12,7 +12,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}  # /github-actions/required-files-checker/beta
+      LOG_GROUP_NAME: ${{ secrets.LOG_GROUP_NAME }}
 
     steps:
       - name: Checkout repository
@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install pyyaml pytest
-      
+
       - name: Run unit tests
         run: pytest
 
@@ -43,11 +43,10 @@ jobs:
           aws logs create-log-group --log-group-name "$LOG_GROUP_NAME" || true
           aws logs create-log-stream --log-group-name "$LOG_GROUP_NAME" --log-stream-name "$LOG_STREAM_NAME" || true
 
-          # Ensure we always have some JSON to log
-          if [ -f required-files-report.json ]; then
-            REPORT_JSON=$(cat required-files-report.json)
-          else
+          if [ ! -f "required-files-report.json" ]; then
             REPORT_JSON='{"used_config_file": false, "config_file": null, "required_files": [], "missing_files": [], "error": "required-files-report.json not found"}'
+          else
+            REPORT_JSON=$(cat required-files-report.json)
           fi
 
           EVENT_JSON=$(
